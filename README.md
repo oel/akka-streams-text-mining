@@ -16,6 +16,7 @@ This is a Scala-based application for extracting n-grams from a stream of text m
 >> /path/to/sbt "runMain ngrams.NgramStream [n] [numMessages]"
 >>
 >> e.g. The following command will extract tri-grams from 100 generated text messages:
+>>
 >> sbt "runMain ngrams.NgramStream 3 100"
 
 ---
