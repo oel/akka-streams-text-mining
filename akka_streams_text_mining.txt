@@ -1,0 +1,197 @@
+AKKA STREAMS - Text Mining
+
+2/1/2017
+
+----
+
+cd ~/projects/scala/akka-stream-text-mining/
+sbt "runMain ngrams.NgramStream"
+
+----
+
+package ngrams
+
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl._
+import akka.NotUsed
+import scala.concurrent.Future
+import scala.util.{Success, Failure}
+import java.util.concurrent.atomic.AtomicLong
+
+object NgramStream {
+
+  def main(args: Array[String]): Unit = {
+    implicit val system = ActorSystem("Sys")
+    implicit val materializer = ActorMaterializer()
+
+    // import system.dispatcher
+
+    val minWordsInText = 8
+    val maxWordsInText = 20
+    val ng = 3
+
+    val textSource: Source[String, NotUsed] =
+      Source.fromIterator(() => Iterator.continually(
+        genRandText(minWordsInText: Int, maxWordsInText: Int))
+      )
+
+    def ngramFlow(n: Int): Flow[String, List[String], NotUsed] =
+      Flow[String].map(text => genNgrams(text, n))
+
+    val consoleSink = Sink.foreach[List[String]](println)
+
+    textSource.via(ngramFlow(ng)).runWith(consoleSink).onComplete {
+      ...
+    }
+  }
+
+}
+
+NgramStream.main(Array())
+
+----
+
+* Generate a random word
+
+import java.util.concurrent.ThreadLocalRandom
+import scala.collection.mutable.ListBuffer
+
+val alphabetSet: Set[Char] = ('a' to 'z').toSet
+val vowelSet: Set[Char] = Set('a', 'e', 'i', 'o', 'u')
+val consonantSet: Set[Char] = alphabetSet -- vowelSet
+
+val alphabets = alphabetSet.toList
+val vowels = vowelSet.toList
+val consonants = consonantSet.toList
+
+def random = ThreadLocalRandom.current
+
+def randomChar: Char = alphabets(random.nextInt(0, alphabets.length))
+
+def mostlyVowelChar: Char = {
+  // 4/5th chance of vowel
+  val isVowel: Boolean = if (random.nextInt(0, 5) > 0) true else false
+  if (isVowel) vowels(random.nextInt(0, vowels.length)) else consonants(random.nextInt(0, consonants.length))
+}
+
+def maybeUpperChar: Char = {
+  // 1/5th chance of uppercase
+  val isUppercase: Boolean = if (random.nextInt(0, 5) == 0) true else false
+  if (isUppercase) Character.toUpperCase(randomChar) else randomChar
+}
+
+// Generate a word within a range of lengths
+def genRandWord(minLen: Int, maxLen: Int): String = {
+  var word = new ListBuffer[Char]()
+
+  val wordLen: Int = random.nextInt(minLen, maxLen + 1)
+
+  for (i <- 1 to wordLen) {
+    val char = if (i == 1) maybeUpperChar else (if (i % 2 == 0) mostlyVowelChar else randomChar)
+    word += char
+  }
+
+  word.mkString
+}
+
+genRandWord(2, 9)
+
+--
+
+* Generate text of random words
+
+val punctSet: Set[Char] = Set('.', ',', ';', '?', '!')
+val puncts: List[Char] = punctSet.toList
+
+// Generate text of random words
+def genRandText(minWordsInText: Int, maxWordsInText: Int,
+    minWordLen: Int = 1, maxWordLen: Int = 10,
+    minWordsInClause: Int = 1, maxWordsInClause: Int = 10
+    ): String = {
+
+  var text = new ListBuffer[String]()
+
+  val numWordsInText: Int = random.nextInt(minWordsInText, maxWordsInText + 1)
+  
+  var wordCount: Int = 0
+  var textLen: Int = 0
+
+  while (wordCount < numWordsInText) {
+    val numWords = random.nextInt(minWordsInClause, maxWordsInClause + 1)
+
+    val numWordsInClause = if (numWordsInText - wordCount < numWords) numWordsInText - wordCount else
+      numWords
+
+    var clauseLen: Int = 0
+
+    // Generate a clause
+    for (i <- 1 to numWordsInClause) {
+      val word: String = genRandWord(minWordLen, maxWordLen)
+
+      text += word
+      clauseLen += word.length
+      wordCount += 1
+
+      if (i < numWordsInClause) {
+        text += " "
+        clauseLen += 1
+      }
+    }
+
+    // Add a punctuation
+    text += puncts(random.nextInt(0, puncts.length)).toString
+    clauseLen += 1
+
+    if (wordCount < numWordsInText) {
+      text += " "
+      clauseLen += 1
+    }
+
+    textLen += clauseLen
+  }
+
+  println(s"numWordsInText: $numWordsInText")
+  println(s"wordCount: $wordCount")
+  println(s"text.length: ${text.length}")
+  println(s"textLen (in chars): is $textLen")
+
+  text.mkString
+}
+
+genRandText(8, 20)
+genRandText(8, 20, 3, 6)
+
+--
+
+* Generate n-grams from text
+
+import scala.collection.mutable.ListBuffer
+
+val text = "This  is just\ta RANDOM  line\t with random white  spaces.\n  This is\tanother  line, i.e. line #2!"
+
+// Generate a list of "sliding" n-grams
+def genNgrams(text: String, n: Int): List[String] = {
+  var listWords = new ListBuffer[String]()
+  val punctsString = puncts.mkString
+
+  text.
+    toLowerCase.
+    // replaceAll("""[\p{Punct}]""", "").  // Punct includes !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+    replaceAll(s"""[${punctsString}]""", "").
+    split("""\s+""").
+    sliding(n).
+    foreach{
+      // p => println(p.mkString(" "))
+      x => listWords += x.mkString(" ")
+    }
+
+  listWords.toList
+}
+
+genNgrams(text, 3)
+
+res1: List[String] = List(this is just, is just a, just a random, a random line, random line with, line with random, with random white, random white spaces, white spaces this, spaces this is, this is another, is another line, another line ie, line ie line, ie line 2)
+
+----
+
