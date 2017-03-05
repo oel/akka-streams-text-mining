@@ -2,7 +2,7 @@
 
 ---
 
-This is a Scala-based application for extracting n-grams from a stream of text messages using Akka Streams.  For a quick walk-through of the application, please visit [Genuine Blog](http://blog.genuine.com/2017/03/akka-streams-text-mining/).
+This is a Scala-based application for extracting n-grams from a stream of text messages using Akka Streams.  For a quick walk-through of the application, please visit [Genuine Blog](http://blog.genuine.com/2017/03/text-mining-with-akka-streams/).
 
 ##### To run the application with sbt, simply proceed as follows:
 
